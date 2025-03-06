@@ -8,18 +8,57 @@ import time
 import random
 import string
 import sys
-import anthropic
-
-client = anthropic.Anthropic(
-    # defaults to os.environ.get("ANTHROPIC_API_KEY")
-    api_key="sk-ant-api03-ulLrYeWEPXIR4hLhyUP8DnDx6gM7fgC9mAJ9zo5W8KPddddddKyt7oEK-bgOUq9_qDGqhBOI8VCgDTvmw---L7pwAA",
-)
-
-
 
 def generate_nonce():
     """Generiert einen zufälligen Nonce-String"""
     return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+
+def call_anthropic_api(api_key, prompt, model="claude-3-7-sonnet-20250219", max_tokens=20000, temperature=1, system="Antworte immer auf deutsch"):
+    """Ruft die Anthropic API direkt über HTTP auf"""
+    url = "https://api.anthropic.com/v1/messages"
+    
+    # API Request Daten
+    data = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "system": system,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt if isinstance(prompt, list) else [{"type": "text", "text": prompt}]
+            }
+        ]
+    }
+    
+    # Request Header
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01"
+    }
+    
+    try:
+        # Request erstellen
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+        
+        # Request ausführen
+        with urllib.request.urlopen(request) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+            return response_data
+            
+    except urllib.error.HTTPError as e:
+        print(f"HTTP Fehler: {e.code}")
+        print(e.read().decode('utf-8'))
+        return None
+    except Exception as e:
+        print(f"Fehler bei der Anfrage: {str(e)}")
+        return None
 
 def make_twitter_request(api_key, api_secret, access_token, access_token_secret, text):
     # Twitter API Endpoint
@@ -101,41 +140,40 @@ def make_twitter_request(api_key, api_secret, access_token, access_token_secret,
         print(f"Fehler beim Posten: {str(e)}")
 
 if __name__ == "__main__":
-    # API Zugangsdaten
-    API_KEY = "U6PUG0T7mzvCBi9yc31Tafhzu"
-    API_SECRET = "Suk9S5L6Q2ihfCyyE2BJ5g2rFrIZeMnglhz7vHV8S1sBC9DqYo"
-    ACCESS_TOKEN = "1896110843999182848-VKVfdFpISxAf2ypEMxzrIpUU0gB1f8"
-    ACCESS_TOKEN_SECRET = "xZ4azlgkc2EQlL5nkwONbC0mlYCpTQ0VulKRncwlR8doW"
+    # API Zugangsdaten für Anthropic
+    ANTHROPIC_API_KEY = "sk-ant-api03-ulLrYeWEPXIR4hLhJYTjExxxxONKyt7oEK-bgOUq9_qDGqhBOI8VCgDTvmw---L7pwAA"
+    
+    # API Zugangsdaten für Twitter
+    API_KEY = "U6PUG0T7mzxxxxxxxxvCBihzu"
+    API_SECRET = "Suk9S5L6Q2ihvxxxxxxxxxxHV8S1sBC9DqYo"
+    ACCESS_TOKEN = "189611084399xxxxxxxxx918rIpUU0gB1f8"
+    ACCESS_TOKEN_SECRET = "xZ4azlgkcccccccxxxxxpTQ0VulKRncwlR8doW"
 
-
-    message = client.messages.create(
-        model="claude-3-7-sonnet-20250219",
-        max_tokens=20000,
-        temperature=1,
-        system="Antworte immer auf deutsch",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "generiere einen text mit max 120 zeichen zum thema umweltschutz"
-                    }
-                ]
-            }
-        ]
-    )
-    print(message.content)
+    # Anthropic API aufrufen
+    prompt = "generiere einen text mit max 120 zeichen zum thema umweltschutz"
+    response = call_anthropic_api(ANTHROPIC_API_KEY, prompt)
     
-    
-    # Tweet Text aus Kommandozeilenargument
-    tweet_text =  message.content[0].text+" #afd #cdu #csu"
-    
-    # Tweet senden
-    make_twitter_request(
-        api_key=API_KEY,
-        api_secret=API_SECRET,
-        access_token=ACCESS_TOKEN,
-        access_token_secret=ACCESS_TOKEN_SECRET,
-        text=tweet_text
-    )
+    if response and "content" in response:
+        # Text aus der Antwort extrahieren
+        if isinstance(response["content"], list) and len(response["content"]) > 0:
+            generated_text = response["content"][0]["text"]
+            print(generated_text)
+            
+            # Tweet senden
+            tweet_text = generated_text + " #afd #cdu #csu"
+            
+            # Prüfen, ob der Tweet die maximale Länge überschreitet
+            if len(tweet_text) > 280:
+                tweet_text = tweet_text[:277] + "..."
+                
+            make_twitter_request(
+                api_key=API_KEY,
+                api_secret=API_SECRET,
+                access_token=ACCESS_TOKEN,
+                access_token_secret=ACCESS_TOKEN_SECRET,
+                text=tweet_text
+            )
+        else:
+            print("Unerwartetes Antwortformat von Anthropic")
+    else:
+        print("Keine Antwort von Anthropic erhalten")

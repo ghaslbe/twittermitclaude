@@ -160,7 +160,7 @@ if __name__ == "__main__":
             print(generated_text)
             
             # Tweet senden
-            tweet_text = generated_text + " #afd #cdu #csu"
+            tweet_text = generated_text + " #umweltschutz"
             
             # Prüfen, ob der Tweet die maximale Länge überschreitet
             if len(tweet_text) > 280:
